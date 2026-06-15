@@ -431,3 +431,6 @@ FodyWeavers.xsd
 
 # build
 ek
+
+# sor
+!cmd/ek
