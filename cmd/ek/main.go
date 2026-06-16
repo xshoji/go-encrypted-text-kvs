@@ -195,6 +195,7 @@ func runInit(filePath string, args []string) error {
 		_ = keychainDelete(keyID)
 		return err
 	}
+	fmt.Fprintf(os.Stderr, "initialized encrypted store: %s\n", path)
 	return nil
 }
 
@@ -360,6 +361,7 @@ func runDestroy(filePath string, args []string) error {
 	if err := os.Remove(backupPath); err != nil {
 		return fmt.Errorf("delete store file %s: %w; Keychain key was deleted", backupPath, err)
 	}
+	fmt.Fprintf(os.Stderr, "destroyed encrypted store: %s\n", path)
 	return nil
 }
 
