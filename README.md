@@ -124,6 +124,25 @@ Restores the data encryption key to the macOS Keychain from a recovery file:
 ek recovery import-key < ek-recovery.yaml
 ```
 
+### `ek recovery export-yaml`
+
+Exports all decrypted key-values as plaintext YAML:
+
+```sh
+umask 077
+ek recovery export-yaml > ek-plaintext.yaml
+```
+
+This file contains secrets. Protect it and delete it when no longer needed.
+
+### `ek recovery import-yaml`
+
+Imports plaintext YAML from stdin and overwrites the encrypted store:
+
+```sh
+ek recovery import-yaml < ek-plaintext.yaml
+```
+
 ## File location
 
 Store file resolution order:

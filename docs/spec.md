@@ -272,6 +272,8 @@ Recovery コマンドはサブコマンド形式にする。
 ```sh
 ek recovery export-key
 ek recovery import-key
+ek recovery export-yaml
+ek recovery import-yaml
 ```
 
 ### `ek recovery export-key`
@@ -319,6 +321,45 @@ ek recovery import-key < ek-recovery.yaml
 ```text
 decrypt key already exists in OS keystore
 ```
+
+### `ek recovery export-yaml`
+
+暗号化された KVS payload を復号し、plaintext YAML を stdout にそのまま出す。出力にはすべての plaintext value が含まれる。
+
+```sh
+umask 077
+ek recovery export-yaml > ek-plaintext.yaml
+```
+
+処理:
+
+1. LocalAuthentication で認証する
+2. Keychain から DEK を取得する
+3. KVS ファイルを復号する
+4. plaintext YAML が v1 store schema と key / value 制約を満たすことを確認する
+5. 復号された YAML bytes を stdout に出す
+
+stdout は plaintext YAML 専用にする。コマンド自身は plaintext ファイルを作成しない。
+
+### `ek recovery import-yaml`
+
+stdin から plaintext YAML を読み、既存 store を上書きする。
+
+```sh
+ek recovery import-yaml < ek-plaintext.yaml
+```
+
+処理:
+
+1. plaintext YAML を stdin から読む
+2. v1 store schema と key / value 制約を満たすことを確認する
+3. LocalAuthentication で認証する
+4. Keychain から既存 DEK を取得する
+5. 既存 envelope の `key_id` / `created_at` を維持する
+6. 新しい nonce で stdin の YAML bytes を暗号化する
+7. `updated_at` を更新し、`0600` で atomic write する
+
+store は事前に `ek init` 済みである必要がある。Keychain item は変更しない。import は merge ではなく全体上書きとし、validate に失敗した場合は何も書き込まない。
 
 ## Encrypted KVS file format
 

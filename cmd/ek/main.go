@@ -146,6 +146,8 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  ek [--file PATH] destroy")
 	fmt.Fprintln(w, "  ek [--file PATH] recovery export-key")
 	fmt.Fprintln(w, "  ek [--file PATH] recovery import-key")
+	fmt.Fprintln(w, "  ek [--file PATH] recovery export-yaml")
+	fmt.Fprintln(w, "  ek [--file PATH] recovery import-yaml")
 }
 
 func newFlagSet(name string) *flag.FlagSet {
@@ -364,9 +366,79 @@ func runRecovery(filePath string, args []string) error {
 		return runRecoveryExportKey(filePath, args[1:])
 	case "import-key":
 		return runRecoveryImportKey(filePath, args[1:])
+	case "export-yaml":
+		return runRecoveryExportYAML(filePath, args[1:])
+	case "import-yaml":
+		return runRecoveryImportYAML(filePath, args[1:])
 	default:
 		return usageError{fmt.Sprintf("unknown recovery subcommand %q", args[0])}
 	}
+}
+
+func runRecoveryExportYAML(filePath string, args []string) error {
+	if len(args) != 0 {
+		return usageError{"recovery export-yaml does not accept positional arguments"}
+	}
+	path, err := resolveStorePath(filePath)
+	if err != nil {
+		return err
+	}
+	env, err := readStoreEnvelope(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("not initialized: run \"ek init\"")
+		}
+		return err
+	}
+	key, err := keychainLoad(env.KeyID, "Authenticate to export decrypted YAML")
+	if err != nil {
+		return fmt.Errorf("read key from Keychain: %w", err)
+	}
+	plain, err := decryptStoreYAML(env, key)
+	if err != nil {
+		return fmt.Errorf("failed to decrypt store: file may be corrupted or key is wrong")
+	}
+	if _, err := parseStorePlaintextYAML(plain); err != nil {
+		return fmt.Errorf("failed to parse decrypted store: %w", err)
+	}
+	_, err = os.Stdout.Write(plain)
+	return err
+}
+
+func runRecoveryImportYAML(filePath string, args []string) error {
+	if len(args) != 0 {
+		return usageError{"recovery import-yaml does not accept positional arguments"}
+	}
+	plain, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		return err
+	}
+	if len(bytes.TrimSpace(plain)) == 0 {
+		return validationError{"plaintext YAML is required on stdin"}
+	}
+	if _, err := parseStorePlaintextYAML(plain); err != nil {
+		return err
+	}
+	path, err := resolveStorePath(filePath)
+	if err != nil {
+		return err
+	}
+	env, err := readStoreEnvelope(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("not initialized: run \"ek init\"")
+		}
+		return err
+	}
+	key, err := keychainLoad(env.KeyID, "Authenticate to import decrypted YAML")
+	if err != nil {
+		return fmt.Errorf("read key from Keychain: %w", err)
+	}
+	encoded, err := encryptStoreYAML(plain, env, key, time.Now().UTC())
+	if err != nil {
+		return err
+	}
+	return writeFileAtomic(path, encoded, 0o600)
 }
 
 func runRecoveryExportKey(filePath string, args []string) error {
