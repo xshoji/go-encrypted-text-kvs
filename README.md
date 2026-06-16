@@ -90,11 +90,12 @@ Values must be single-line UTF-8 text. Multiline and binary values are not suppo
 
 Deletes a key-value pair.
 
-### `ek export-to-environment-var KEY...`
+### `ek export-to-environment-var [KEY...]`
 
-Prints shell `export` statements for selected keys:
+Prints shell `export` statements. With no keys, prints all keys:
 
 ```sh
+eval "$(ek export-to-environment-var)"
 eval "$(ek export-to-environment-var API_TOKEN DB_PASSWORD)"
 ```
 

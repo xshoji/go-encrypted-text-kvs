@@ -141,7 +141,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  ek [--file PATH] get KEY")
 	fmt.Fprintln(w, "  ek [--file PATH] set KEY VALUE")
 	fmt.Fprintln(w, "  ek [--file PATH] unset KEY")
-	fmt.Fprintln(w, "  ek [--file PATH] export-to-environment-var KEY...")
+	fmt.Fprintln(w, "  ek [--file PATH] export-to-environment-var [KEY...]")
 	fmt.Fprintln(w, "  ek [--file PATH] unset-environment-var")
 	fmt.Fprintln(w, "  ek [--file PATH] destroy")
 	fmt.Fprintln(w, "  ek [--file PATH] recovery export-key")
@@ -290,9 +290,6 @@ func runUnset(filePath string, args []string) error {
 }
 
 func runExportEnv(filePath string, args []string) error {
-	if len(args) == 0 {
-		return usageError{"export-to-environment-var requires at least one KEY"}
-	}
 	for _, k := range args {
 		if err := validateKey(k); err != nil {
 			return err
@@ -303,8 +300,13 @@ func runExportEnv(filePath string, args []string) error {
 		return err
 	}
 	var b strings.Builder
-	keys := append([]string(nil), args...)
-	sort.Strings(keys)
+	keys := args
+	if len(keys) == 0 {
+		keys = sortedKeys(store.Entries)
+	} else {
+		keys = append([]string(nil), keys...)
+		sort.Strings(keys)
+	}
 	for _, k := range keys {
 		v, ok := store.Entries[k]
 		if !ok {
