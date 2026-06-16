@@ -8,14 +8,13 @@ The command name is `ek` (pronounced "E-K"). It stores encrypted data in a YAML 
 ## Requirements
 
 - macOS
-- Go, if building from source
 
 Linux and Windows are not supported in v1.
 
 ## Install
 
 ```sh
-go install github.com/xshoji/go-encrypted-text-kvs/cmd/ek@latest
+brew install xshoji/tap/ek --cask
 ```
 
 ## Quick start
@@ -166,3 +165,44 @@ The encrypted store file is written with file mode `0600`.
 - The data encryption key is stored in the macOS Keychain.
 - Reading or changing the store requires macOS device owner authentication.
 - Plaintext values, recovery passphrases, and encryption keys should not be logged or passed through environment variables.
+
+
+## Development
+
+### Build
+
+```bash
+# Go
+go build -ldflags="-s" -trimpath -o ek ./...
+
+# Cross-compiling with GoReleaser
+goreleaser build --snapshot --clean
+```
+
+### Test
+
+```bash
+go test -v ./...
+```
+
+## Release
+
+The release flow for this repository is automated with GitHub Actions.
+Pushing Git tags triggers the release job.
+
+```
+# Release
+git tag 0.0.1 && git push --tags
+
+
+# Delete tag
+v="0.0.1"; git tag -d "${v}" && git push origin :"${v}"
+
+# Delete tag and recreate new tag and push
+v="0.0.1"; git tag -d "${v}" && git push origin :"${v}"; git tag "${v}"; git push --tags
+```
+
+
+## License
+
+MIT — see [LICENSE](LICENSE).
