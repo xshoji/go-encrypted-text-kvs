@@ -1,0 +1,54 @@
+version: 2
+builds:
+  - main: cmd/ek/main.go
+    binary: ek
+    goos:
+      - windows
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -X github.com/xshoji/go-encrypted-text-kvs/cmd/ek/main.Version={{.Version}}
+    env:
+      - CGO_ENABLED=0
+archives:
+  - id: main
+    formats: [zip]
+    name_template: >-
+      {{ .ProjectName }}_{{ .Version }}_
+      {{- if eq .Os "darwin" }}macOS
+      {{- else if eq .Os "linux" }}Linux
+      {{- else if eq .Os "windows" }}Windows
+      {{- else }}{{ .Os }}{{ end }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{ end }}
+    files:
+      - README*
+      - LICENSE*
+snapshot:
+  version_template: "{{ .Tag }}-next-{{.ShortCommit}}"
+homebrew_casks:
+  - name: ek
+    repository:
+      owner: xshoji
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
+    homepage: https://github.com/xshoji/go-encrypted-text-kvs
+    description: ek is a small CLI tool for storing text key-value pairs in an encrypted local file.
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr",
+              args: ["-dr", "com.apple.quarantine", "#{staged_path}/ek"]
+          end
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'

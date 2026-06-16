@@ -18,6 +18,9 @@ import (
 
 const defaultStoreFile = ".ek.yaml"
 
+// Version is set via -ldflags at build time.
+var Version = "0.0.0-dev"
+
 func main() {
 	code := 1
 	if err := run(os.Args[1:]); err != nil {
