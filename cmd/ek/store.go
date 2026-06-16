@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"time"
 
@@ -190,7 +191,7 @@ func unwrapRecoveryKey(file *recoveryFile, passphrase []byte) ([]byte, error) {
 		return nil, fmt.Errorf("unsupported recovery file")
 	}
 	if file.KDF.Time != 3 || file.KDF.MemoryKiB != 64*1024 || file.KDF.Threads != 4 {
-		return nil, fmt.Errorf("unsupported recovery file")
+		return nil, fmt.Errorf("unsupported recovery file KDF parameters")
 	}
 	salt, err := base64.StdEncoding.DecodeString(file.KDF.Salt)
 	if err != nil {
@@ -283,6 +284,7 @@ func zeroBytes(data []byte) {
 	for i := range data {
 		data[i] = 0
 	}
+	runtime.KeepAlive(data)
 }
 
 var keyPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
