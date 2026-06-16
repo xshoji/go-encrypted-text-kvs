@@ -323,8 +323,8 @@ func validateKey(key string) error {
 	return nil
 }
 func validateValue(value string) error {
-	if strings.ContainsAny(value, "\n\r\x00") {
-		return validationError{"invalid value: multiline values are not supported in v1"}
+	if strings.ContainsAny(value, "\r\x00") {
+		return validationError{"invalid value: carriage return and NUL bytes are not supported"}
 	}
 	return nil
 }

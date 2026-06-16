@@ -137,9 +137,9 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  ek [--file PATH] init")
-	fmt.Fprintln(w, "  ek [--file PATH] list [--detail|-d]")
+	fmt.Fprintln(w, "  ek [--file PATH] list")
 	fmt.Fprintln(w, "  ek [--file PATH] get KEY")
-	fmt.Fprintln(w, "  ek [--file PATH] set KEY VALUE")
+	fmt.Fprintln(w, "  ek [--file PATH] set KEY [VALUE]")
 	fmt.Fprintln(w, "  ek [--file PATH] unset KEY")
 	fmt.Fprintln(w, "  ek [--file PATH] export-to-environment-var [KEY...]")
 	fmt.Fprintln(w, "  ek [--file PATH] unset-environment-var")
@@ -200,8 +200,6 @@ func runInit(filePath string, args []string) error {
 
 func runList(filePath string, args []string) error {
 	fs := newFlagSet("list")
-	detail := fs.Bool("detail", false, "show values")
-	shortDetail := fs.Bool("d", false, "show values")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -214,11 +212,7 @@ func runList(filePath string, args []string) error {
 	}
 	keys := sortedKeys(store.Entries)
 	for _, k := range keys {
-		if *detail || *shortDetail {
-			fmt.Fprintf(os.Stdout, "%s=%s\n", k, store.Entries[k])
-		} else {
-			fmt.Fprintln(os.Stdout, k)
-		}
+		fmt.Fprintf(os.Stdout, "%s = %s\n", k, store.Entries[k])
 	}
 	return nil
 }
@@ -244,12 +238,22 @@ func runGet(filePath string, args []string) error {
 }
 
 func runSet(filePath string, args []string) error {
-	if len(args) != 2 {
-		return usageError{"set requires KEY and VALUE"}
+	if len(args) < 1 || len(args) > 2 {
+		return usageError{"set requires KEY and optional VALUE"}
 	}
-	keyName, value := args[0], args[1]
+	keyName := args[0]
 	if err := validateKey(keyName); err != nil {
 		return err
+	}
+	var value string
+	if len(args) == 2 {
+		value = args[1]
+	} else {
+		content, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return err
+		}
+		value = string(content)
 	}
 	if err := validateValue(value); err != nil {
 		return err

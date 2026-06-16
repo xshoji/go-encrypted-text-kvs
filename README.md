@@ -60,23 +60,28 @@ Creates a new encrypted store and saves its data encryption key in the macOS Key
 
 ### `ek list`
 
-Lists keys in sorted order.
+Lists key-value pairs in sorted key order.
 
 ```sh
 ek list
-ek list --detail
-ek list -d
 ```
 
-`--detail` / `-d` prints `KEY=value` lines.
+Prints `KEY=value` lines.
 
 ### `ek get KEY`
 
 Prints the value for `KEY` to stdout without adding a trailing newline.
 
-### `ek set KEY VALUE`
+### `ek set KEY [VALUE]`
 
 Adds or updates a key-value pair.
+
+If `VALUE` is omitted, reads the value from stdin:
+
+```sh
+cat memo.txt | ek set MEMO
+ek set MEMO < memo.txt
+```
 
 Keys must match:
 
@@ -84,7 +89,7 @@ Keys must match:
 [A-Za-z_][A-Za-z0-9_]*
 ```
 
-Values must be single-line UTF-8 text. Multiline and binary values are not supported in v1.
+Values must be UTF-8 text. NUL bytes and carriage returns are not supported.
 
 ### `ek unset KEY`
 

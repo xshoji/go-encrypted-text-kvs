@@ -80,12 +80,10 @@ ek init
 
 ### `ek list`
 
-key 一覧を辞書順で表示する。
+key-value 一覧を key の辞書順で表示する。
 
 ```sh
 ek list
-ek list --detail
-ek list -d
 ```
 
 処理:
@@ -93,16 +91,9 @@ ek list -d
 1. LocalAuthentication で認証する
 2. Keychain から DEK を取得する
 3. KVS ファイルを復号する
-4. key を辞書順で stdout に出す
+4. key-value を key の辞書順で stdout に出す
 
-通常出力:
-
-```text
-API_TOKEN
-DB_PASSWORD
-```
-
-`--detail` / `-d` 出力:
+出力:
 
 ```text
 API_TOKEN=xxxxx
@@ -135,23 +126,27 @@ key が存在しない場合は stderr に以下を出して失敗する。
 key not found: API_TOKEN
 ```
 
-### `ek set KEY VALUE`
+### `ek set KEY [VALUE]`
 
 key-value を追加または更新する。
 
 ```sh
 ek set API_TOKEN "xxxxx"
+cat memo.txt | ek set MEMO
+ek set MEMO < memo.txt
 ```
 
 処理:
 
-1. KEY / VALUE を validate する
-2. LocalAuthentication で認証する
-3. Keychain から DEK を取得する
-4. 既存 KVS ファイルを復号する
-5. `entries[KEY] = VALUE` に更新する
-6. 新しい nonce で envelope 全体を再暗号化する
-7. `0600` で atomic write する
+1. KEY を validate する
+2. VALUE が省略された場合は stdin 全体を VALUE として読む
+3. VALUE を validate する
+4. LocalAuthentication で認証する
+5. Keychain から DEK を取得する
+6. 既存 KVS ファイルを復号する
+7. `entries[KEY] = VALUE` に更新する
+8. 新しい nonce で envelope 全体を再暗号化する
+9. `0600` で atomic write する
 
 同じ key が存在する場合は上書きする。成功時は stdout なしとする。
 
@@ -519,7 +514,7 @@ insecure file permissions: expected 0600
 | file not initialized | `not initialized: run "ek init"` |
 | already initialized | `already initialized: .ek.yaml` |
 | invalid key | `invalid key name: must match [A-Za-z_][A-Za-z0-9_]*` |
-| invalid value | `invalid value: multiline values are not supported in v1` |
+| invalid value | `invalid value: carriage return and NUL bytes are not supported` |
 | key not found | `key not found: API_TOKEN` |
 | auth canceled / failed | `authentication failed or canceled` |
 | missing keystore DEK | `decrypt key not found in OS keystore; run "ek recovery import-key"` |
@@ -598,7 +593,7 @@ CLI test は fake keystore を使う。macOS Keychain integration test は darwi
 - Windows Credential Manager 対応
 - cloud sync
 - multi-user sharing
-- multiline / binary value の native support
+- binary value の native support
 - editor integration
 - JSON output mode
 - key alias / env var alias

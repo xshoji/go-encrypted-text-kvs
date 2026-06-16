@@ -30,7 +30,10 @@ func TestValidateValue(t *testing.T) {
 	if err := validateValue("foo bar"); err != nil {
 		t.Fatal(err)
 	}
-	for _, value := range []string{"foo\nbar", "foo\rbar", "foo\x00bar"} {
+	if err := validateValue("foo\nbar"); err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []string{"foo\rbar", "foo\x00bar"} {
 		if err := validateValue(value); err == nil {
 			t.Fatalf("invalid value %q passed", value)
 		}
@@ -139,7 +142,7 @@ func TestParseStorePlaintextYAMLValidatesEntries(t *testing.T) {
 		"version": []byte("version: 2\ntype: kvs\nentries: {}\n"),
 		"type":    []byte("version: 1\ntype: other\nentries: {}\n"),
 		"key":     []byte("version: 1\ntype: kvs\nentries:\n  bad-key: value\n"),
-		"value":   []byte("version: 1\ntype: kvs\nentries:\n  API_TOKEN: |\n    multi\n    line\n"),
+		"value":   []byte("version: 1\ntype: kvs\nentries:\n  API_TOKEN: \"bad\\0value\"\n"),
 	} {
 		if _, err := parseStorePlaintextYAML(plain); err == nil {
 			t.Fatalf("invalid %s plaintext passed", name)
