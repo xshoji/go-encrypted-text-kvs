@@ -301,7 +301,9 @@ func runExportEnv(filePath string, args []string) error {
 		return err
 	}
 	var b strings.Builder
-	for _, k := range args {
+	keys := append([]string(nil), args...)
+	sort.Strings(keys)
+	for _, k := range keys {
 		v, ok := store.Entries[k]
 		if !ok {
 			return fmt.Errorf("key not found: %s", k)
@@ -337,10 +339,20 @@ func runDestroy(filePath string, args []string) error {
 	if _, err := decryptStore(env, key); err != nil {
 		return err
 	}
+	backupPath := path + ".destroying"
+	if err := os.Rename(path, backupPath); err != nil {
+		return fmt.Errorf("move store file before destroy: %w", err)
+	}
 	if err := keychainDelete(env.KeyID); err != nil {
+		if restoreErr := os.Rename(backupPath, path); restoreErr != nil {
+			return fmt.Errorf("delete key from Keychain: %w; store file remains at %s and could not be restored to %s: %v", err, backupPath, path, restoreErr)
+		}
 		return fmt.Errorf("delete key from Keychain: %w", err)
 	}
-	return os.Remove(path)
+	if err := os.Remove(backupPath); err != nil {
+		return fmt.Errorf("delete store file %s: %w; Keychain key was deleted", backupPath, err)
+	}
+	return nil
 }
 
 func runRecovery(filePath string, args []string) error {
@@ -423,6 +435,8 @@ func runRecoveryImportKey(filePath string, args []string) error {
 	if err != nil {
 		return err
 	}
+	// If the store exists, verify the imported key matches it. A missing store is
+	// allowed so users can restore the Keychain item before restoring the file.
 	if env, err := readStoreEnvelope(path); err == nil {
 		if env.KeyID != recovery.KeyID {
 			return fmt.Errorf("recovery key_id %q does not match store key_id %q", recovery.KeyID, env.KeyID)
