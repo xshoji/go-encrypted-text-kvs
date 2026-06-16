@@ -444,7 +444,11 @@ func resolveStorePath(path string) (string, error) {
 		path = os.Getenv("EK_FILE")
 	}
 	if strings.TrimSpace(path) == "" {
-		path = defaultStoreFile
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		path = filepath.Join(homeDir, defaultStoreFile)
 	}
 	return filepath.Abs(path)
 }

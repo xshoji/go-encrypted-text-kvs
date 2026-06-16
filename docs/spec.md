@@ -37,7 +37,7 @@ ek [--file PATH] <command> [args...]
 
 1. `--file PATH`
 2. `EK_FILE`
-3. カレントディレクトリの `.ek.yaml`
+3. home directory の `.ek.yaml`
 
 stdout は各コマンドのデータ出力専用にする。エラー、警告、認証や passphrase の prompt は stderr または TTY に出す。
 
