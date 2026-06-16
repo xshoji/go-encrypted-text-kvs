@@ -2,7 +2,8 @@
 
 `go-encrypted-text-kvs` is a small CLI tool for storing text key-value pairs in an encrypted local file.
 
-The command name is `ek`. It stores the encrypted data in a YAML file and protects the data encryption key with the macOS Keychain.
+The command name is `ek` (pronounced "E-K"). It stores encrypted data in a YAML file, with the data encryption key protected by the macOS Keychain.
+
 
 ## Requirements
 
