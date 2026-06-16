@@ -90,32 +90,15 @@ static char *ss_keychain_store(const char *account, const unsigned char *data, i
 		NSString *accountString = [NSString stringWithUTF8String:account];
 		NSData *valueData = [NSData dataWithBytes:data length:(NSUInteger)dataLen];
 
-		CFErrorRef accessControlError = NULL;
-		SecAccessControlRef accessControl = SecAccessControlCreateWithFlags(
-			NULL,
-			kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
-			kSecAccessControlUserPresence,
-			&accessControlError
-		);
-		if (accessControl == NULL) {
-			NSString *message = @"create Keychain access control failed";
-			if (accessControlError != NULL) {
-				message = [(__bridge NSError *)accessControlError localizedDescription];
-				CFRelease(accessControlError);
-			}
-			return ss_strdup_nsstring(message);
-		}
-
 		NSDictionary *addQuery = @{
 			(__bridge id)kSecClass: (__bridge id)kSecClassGenericPassword,
 			(__bridge id)kSecAttrService: service,
 			(__bridge id)kSecAttrAccount: accountString,
 			(__bridge id)kSecValueData: valueData,
-			(__bridge id)kSecAttrAccessControl: (__bridge id)accessControl,
+			(__bridge id)kSecAttrAccessible: (__bridge id)kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
 		};
 
 		OSStatus status = SecItemAdd((__bridge CFDictionaryRef)addQuery, NULL);
-		CFRelease(accessControl);
 		if (status != errSecSuccess) {
 			return ss_status_error(status);
 		}
@@ -125,24 +108,19 @@ static char *ss_keychain_store(const char *account, const unsigned char *data, i
 
 static char *ss_keychain_load(const char *account, const char *prompt, unsigned char **outData, int *outLen) {
 	@autoreleasepool {
+		char *authError = ss_authenticate(prompt);
+		if (authError != NULL) {
+			return authError;
+		}
+
 		NSString *service = @"go-encrypted-text-kvs";
 		NSString *accountString = [NSString stringWithUTF8String:account];
-		NSString *promptString = @"Authenticate to unlock go-encrypted-text-kvs";
-		if (prompt != NULL) {
-			NSString *customPrompt = [NSString stringWithUTF8String:prompt];
-			if (customPrompt != nil && [customPrompt length] > 0) {
-				promptString = customPrompt;
-			}
-		}
-		LAContext *context = [[LAContext alloc] init];
-		context.localizedReason = promptString;
 
 		NSDictionary *query = @{
 			(__bridge id)kSecClass: (__bridge id)kSecClassGenericPassword,
 			(__bridge id)kSecAttrService: service,
 			(__bridge id)kSecAttrAccount: accountString,
 			(__bridge id)kSecReturnData: @YES,
-			(__bridge id)kSecUseAuthenticationContext: context,
 		};
 
 		CFTypeRef result = NULL;
