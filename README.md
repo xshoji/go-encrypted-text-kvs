@@ -96,21 +96,21 @@ Values must be UTF-8 text. NUL bytes and carriage returns are not supported.
 
 Deletes a key-value pair.
 
-### `ek export-to-environment-var [KEY...]`
+### `ek export-env [KEY...]`
 
 Prints shell `export` statements. With no keys, prints all keys:
 
 ```sh
-eval "$(ek export-to-environment-var)"
-eval "$(ek export-to-environment-var API_TOKEN DB_PASSWORD)"
+eval "$(ek export-env)"
+eval "$(ek export-env API_TOKEN DB_PASSWORD)"
 ```
 
-### `ek unset-environment-var`
+### `ek unset-env`
 
 Prints shell `unset` statements for all keys in the store:
 
 ```sh
-eval "$(ek unset-environment-var)"
+eval "$(ek unset-env)"
 ```
 
 ### `ek recovery export-key`

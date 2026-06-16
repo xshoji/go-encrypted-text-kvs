@@ -86,12 +86,12 @@ func run(args []string) error {
 			return err
 		}
 		return runUnset(filePath, rest[1:])
-	case "export-to-environment-var":
+	case "export-env":
 		if err := ensureSupportedOS(); err != nil {
 			return err
 		}
 		return runExportEnv(filePath, rest[1:])
-	case "unset-environment-var":
+	case "unset-env":
 		if err := ensureSupportedOS(); err != nil {
 			return err
 		}
@@ -141,8 +141,8 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  ek [--file PATH] get KEY")
 	fmt.Fprintln(w, "  ek [--file PATH] set KEY [VALUE]")
 	fmt.Fprintln(w, "  ek [--file PATH] unset KEY")
-	fmt.Fprintln(w, "  ek [--file PATH] export-to-environment-var [KEY...]")
-	fmt.Fprintln(w, "  ek [--file PATH] unset-environment-var")
+	fmt.Fprintln(w, "  ek [--file PATH] export-env [KEY...]")
+	fmt.Fprintln(w, "  ek [--file PATH] unset-env")
 	fmt.Fprintln(w, "  ek [--file PATH] destroy")
 	fmt.Fprintln(w, "  ek [--file PATH] recovery export-key")
 	fmt.Fprintln(w, "  ek [--file PATH] recovery import-key")
@@ -324,7 +324,7 @@ func runExportEnv(filePath string, args []string) error {
 
 func runUnsetEnv(filePath string, args []string) error {
 	if len(args) != 0 {
-		return usageError{"unset-environment-var does not accept positional arguments"}
+		return usageError{"unset-env does not accept positional arguments"}
 	}
 	store, _, err := loadAuthenticatedStore(filePath, "Authenticate to unset encrypted environment variables")
 	if err != nil {
