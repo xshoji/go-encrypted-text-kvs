@@ -90,9 +90,6 @@ func readStoreEnvelope(path string) (*storeEnvelope, error) {
 }
 
 func encryptStore(store storePlaintext, env *storeEnvelope, key []byte, now time.Time) ([]byte, error) {
-	if len(key) != chacha20poly1305.KeySize {
-		return nil, fmt.Errorf("unexpected key length %d", len(key))
-	}
 	if store.Entries == nil {
 		store.Entries = map[string]string{}
 	}
@@ -101,6 +98,13 @@ func encryptStore(store storePlaintext, env *storeEnvelope, key []byte, now time
 	plain, err := yaml.Marshal(store)
 	if err != nil {
 		return nil, err
+	}
+	return encryptStoreYAML(plain, env, key, now)
+}
+
+func encryptStoreYAML(plain []byte, env *storeEnvelope, key []byte, now time.Time) ([]byte, error) {
+	if len(key) != chacha20poly1305.KeySize {
+		return nil, fmt.Errorf("unexpected key length %d", len(key))
 	}
 	nonce, err := randomBytes(chacha20poly1305.NonceSizeX)
 	if err != nil {
@@ -118,44 +122,67 @@ func encryptStore(store storePlaintext, env *storeEnvelope, key []byte, now time
 	return yaml.Marshal(env)
 }
 
-func decryptStore(env *storeEnvelope, key []byte) (storePlaintext, error) {
+func decryptStoreYAML(env *storeEnvelope, key []byte) ([]byte, error) {
 	if env.Cipher.Algorithm != "xchacha20poly1305" {
-		return storePlaintext{}, fmt.Errorf("unsupported cipher %q", env.Cipher.Algorithm)
+		return nil, fmt.Errorf("unsupported cipher %q", env.Cipher.Algorithm)
 	}
 	if env.Payload.Encoding != "base64" {
-		return storePlaintext{}, fmt.Errorf("unsupported payload encoding %q", env.Payload.Encoding)
+		return nil, fmt.Errorf("unsupported payload encoding %q", env.Payload.Encoding)
 	}
 	nonce, err := base64.StdEncoding.DecodeString(env.Cipher.Nonce)
 	if err != nil {
-		return storePlaintext{}, err
+		return nil, err
 	}
 	if len(nonce) != chacha20poly1305.NonceSizeX {
-		return storePlaintext{}, fmt.Errorf("invalid nonce length")
+		return nil, fmt.Errorf("invalid nonce length")
 	}
 	ciphertext, err := base64.StdEncoding.DecodeString(env.Payload.Ciphertext)
 	if err != nil {
-		return storePlaintext{}, err
+		return nil, err
 	}
 	if len(ciphertext) < chacha20poly1305.Overhead {
-		return storePlaintext{}, fmt.Errorf("invalid ciphertext length")
+		return nil, fmt.Errorf("invalid ciphertext length")
 	}
 	aead, err := chacha20poly1305.NewX(key)
 	if err != nil {
-		return storePlaintext{}, err
+		return nil, err
 	}
 	plain, err := aead.Open(nil, nonce, ciphertext, storeAAD(env))
 	if err != nil {
+		return nil, err
+	}
+	return plain, nil
+}
+
+func decryptStore(env *storeEnvelope, key []byte) (storePlaintext, error) {
+	plain, err := decryptStoreYAML(env, key)
+	if err != nil {
 		return storePlaintext{}, err
 	}
+	return parseStorePlaintextYAML(plain)
+}
+
+func parseStorePlaintextYAML(plain []byte) (storePlaintext, error) {
 	var store storePlaintext
 	if err := yaml.Unmarshal(plain, &store); err != nil {
-		return storePlaintext{}, err
+		return storePlaintext{}, fmt.Errorf("parse plaintext YAML: %w", err)
 	}
-	if store.Version != 1 || store.Type != "kvs" {
-		return storePlaintext{}, fmt.Errorf("unexpected plaintext store")
+	if store.Version != 1 {
+		return storePlaintext{}, validationError{fmt.Sprintf("unsupported plaintext store version %d", store.Version)}
+	}
+	if store.Type != "kvs" {
+		return storePlaintext{}, validationError{fmt.Sprintf("unexpected plaintext store type %q", store.Type)}
 	}
 	if store.Entries == nil {
 		store.Entries = map[string]string{}
+	}
+	for k, v := range store.Entries {
+		if err := validateKey(k); err != nil {
+			return storePlaintext{}, fmt.Errorf("invalid entry key %q: %w", k, err)
+		}
+		if err := validateValue(v); err != nil {
+			return storePlaintext{}, fmt.Errorf("invalid value for key %q: %w", k, err)
+		}
 	}
 	return store, nil
 }

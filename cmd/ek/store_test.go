@@ -100,6 +100,53 @@ func TestEncryptDecryptStore(t *testing.T) {
 	}
 }
 
+func TestEncryptDecryptStoreYAMLPreservesPlaintextBytes(t *testing.T) {
+	key, err := randomBytes(32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	env := &storeEnvelope{Version: 1, Type: "encrypted-text-kvs", KeyID: "test", CreatedAt: now.Format(time.RFC3339)}
+	plain := []byte("version: 1\ntype: kvs\nentries:\n  API_TOKEN: secret\n")
+	encoded, err := encryptStoreYAML(plain, env, key, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	readEnv, err := readEnvelopeBytes(encoded)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := decryptStoreYAML(readEnv, key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(plain) {
+		t.Fatalf("got %q, want %q", got, plain)
+	}
+}
+
+func TestParseStorePlaintextYAMLValidatesEntries(t *testing.T) {
+	valid := []byte("version: 1\ntype: kvs\nentries:\n  API_TOKEN: secret\n  EMPTY: \"\"\n")
+	store, err := parseStorePlaintextYAML(valid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if store.Entries["EMPTY"] != "" {
+		t.Fatal("empty value was not preserved")
+	}
+
+	for name, plain := range map[string][]byte{
+		"version": []byte("version: 2\ntype: kvs\nentries: {}\n"),
+		"type":    []byte("version: 1\ntype: other\nentries: {}\n"),
+		"key":     []byte("version: 1\ntype: kvs\nentries:\n  bad-key: value\n"),
+		"value":   []byte("version: 1\ntype: kvs\nentries:\n  API_TOKEN: |\n    multi\n    line\n"),
+	} {
+		if _, err := parseStorePlaintextYAML(plain); err == nil {
+			t.Fatalf("invalid %s plaintext passed", name)
+		}
+	}
+}
+
 func TestDecryptStoreRejectsInvalidNonceLength(t *testing.T) {
 	key, err := randomBytes(32)
 	if err != nil {
