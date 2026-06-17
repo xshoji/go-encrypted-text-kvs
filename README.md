@@ -5,6 +5,10 @@
 The command name is `ek` (pronounced "E-K"). It stores encrypted data in a YAML file, with the data encryption key protected by the macOS Keychain or a passphrase-protected local software keystore.
 
 
+[demo.mp4](https://github.com/user-attachments/assets/bfe16e5e-5694-418f-a721-bd6cee5db3b5)
+
+
+
 ## Requirements
 
 - macOS: Keychain-backed storage
@@ -90,7 +94,7 @@ Keys must match:
 [A-Za-z_][A-Za-z0-9_]*
 ```
 
-Values must be UTF-8 text. NUL bytes and carriage returns are not supported.
+Values must be UTF-8 text. Multiline values are supported; NUL bytes and carriage returns are not.
 
 ### `ek unset KEY`
 
@@ -131,6 +135,8 @@ Restores the data encryption key to the platform keystore from a recovery file:
 ek recovery import-key < ek-recovery.yaml
 ```
 
+The encrypted store file must already exist at the selected store path.
+
 ### `ek recovery export-yaml`
 
 Exports all decrypted key-values as plaintext YAML:
@@ -150,6 +156,8 @@ Imports plaintext YAML from stdin and overwrites the encrypted store:
 ek recovery import-yaml < ek-plaintext.yaml
 ```
 
+This keeps the existing store key ID and does not modify the platform keystore.
+
 ## File location
 
 Store file resolution order:
@@ -157,6 +165,8 @@ Store file resolution order:
 1. `--file PATH`
 2. `EK_FILE`
 3. `~/.ek.yaml`
+
+Specify `--file PATH` before the command name, for example `ek --file store.yaml list`.
 
 The encrypted store file is written with file mode `0600`.
 

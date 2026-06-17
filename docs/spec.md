@@ -84,6 +84,7 @@ value は UTF-8 text とする。
 
 - 空文字は許可する
 - 改行 `\n` は許可する
+- 複数行 value は許可する
 - `\r`, NUL byte は禁止する
 - binary 値は v1 では非対応とし、必要なら利用者側で base64 化する
 
@@ -338,10 +339,11 @@ ek recovery import-key < ek-recovery.yaml
 3. Argon2id で wrap key を導出する
 4. XChaCha20-Poly1305 で DEK を unwrap する
 5. payload が 32 bytes であることを確認する
-6. KVS ファイルが存在する場合、envelope の `key_id` と recovery YAML の `key_id` が一致することを確認する
-7. 同じ `key_id` の DEK が keystore に存在しないことを確認する
-8. DEK を platform keystore に保存する
-9. KVS ファイルが存在する場合、復号できることを確認する
+6. KVS ファイルが存在することを確認する
+7. envelope の `key_id` と recovery YAML の `key_id` が一致することを確認する
+8. 同じ `key_id` の DEK が keystore に存在しないことを確認する
+9. DEK で KVS ファイルを復号できることを確認する
+10. DEK を platform keystore に保存する
 
 既に同じ `key_id` の DEK が keystore に存在する場合、v1 では上書きしない。
 
