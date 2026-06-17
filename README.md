@@ -2,14 +2,13 @@
 
 `go-encrypted-text-kvs` is a small CLI tool for storing text key-value pairs in an encrypted local file.
 
-The command name is `ek` (pronounced "E-K"). It stores encrypted data in a YAML file, with the data encryption key protected by the macOS Keychain.
+The command name is `ek` (pronounced "E-K"). It stores encrypted data in a YAML file, with the data encryption key protected by the macOS Keychain or a passphrase-protected local software keystore.
 
 
 ## Requirements
 
-- macOS
-
-Linux and Windows are not supported in v1.
+- macOS: Keychain-backed storage
+- Linux / Windows: passphrase-protected local key storage
 
 ## Install
 
@@ -46,7 +45,7 @@ Delete a value:
 ek unset API_TOKEN
 ```
 
-Destroy the encrypted store and its Keychain item:
+Destroy the encrypted store and its keystore item:
 
 ```sh
 ek destroy
@@ -56,7 +55,9 @@ ek destroy
 
 ### `ek init`
 
-Creates a new encrypted store and saves its data encryption key in the macOS Keychain.
+Creates a new encrypted store and saves its data encryption key in the platform keystore.
+
+On Linux and Windows, `ek init` asks for a local key passphrase and stores a passphrase-wrapped key file.
 
 ### `ek list`
 
@@ -124,7 +125,7 @@ Keep this recovery file and passphrase safe. The recovery file does not contain 
 
 ### `ek recovery import-key`
 
-Restores the data encryption key to the macOS Keychain from a recovery file:
+Restores the data encryption key to the platform keystore from a recovery file:
 
 ```sh
 ek recovery import-key < ek-recovery.yaml
@@ -159,11 +160,17 @@ Store file resolution order:
 
 The encrypted store file is written with file mode `0600`.
 
+On Linux and Windows, the local software key file is stored separately:
+
+- Linux: `${XDG_CONFIG_HOME:-$HOME/.config}/ek/keys/<key_id>.yaml`
+- Windows: `%AppData%\ek\keys\<key_id>.yaml`
+
 ## Security notes
 
 - File contents are encrypted with XChaCha20-Poly1305.
-- The data encryption key is stored in the macOS Keychain.
-- Reading or changing the store requires macOS device owner authentication.
+- On macOS, the data encryption key is stored in the macOS Keychain and reading or changing the store requires device owner authentication.
+- On Linux and Windows, the data encryption key is protected by a local passphrase-wrapped key file. This is not hardware-backed or biometric-protected.
+- If an attacker obtains both the encrypted store and the local key file, security depends on the strength of the local key passphrase.
 - Plaintext values, recovery passphrases, and encryption keys should not be logged or passed through environment variables.
 
 
