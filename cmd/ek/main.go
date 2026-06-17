@@ -518,17 +518,18 @@ func runRecoveryImportKey(filePath string, args []string) error {
 	if err != nil {
 		return err
 	}
-	// If the store exists, verify the imported key matches it. A missing store is
-	// allowed so users can restore the keystore item before restoring the file.
-	if env, err := readStoreEnvelope(path); err == nil {
-		if env.KeyID != recovery.KeyID {
-			return fmt.Errorf("recovery key_id %q does not match store key_id %q", recovery.KeyID, env.KeyID)
+	env, err := readStoreEnvelope(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("not initialized: restore the encrypted store file before running \"ek recovery import-key\"")
 		}
-		if _, err := decryptStore(env, key); err != nil {
-			return fmt.Errorf("failed to decrypt store: file may be corrupted or key is wrong")
-		}
-	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
+	}
+	if env.KeyID != recovery.KeyID {
+		return fmt.Errorf("recovery key_id %q does not match store key_id %q", recovery.KeyID, env.KeyID)
+	}
+	if _, err := decryptStore(env, key); err != nil {
+		return fmt.Errorf("failed to decrypt store: file may be corrupted or key is wrong")
 	}
 	if keystoreExists(recovery.KeyID) {
 		return fmt.Errorf("decrypt key already exists in OS keystore")
@@ -543,7 +544,7 @@ func resolveStorePath(path string) (string, error) {
 	if strings.TrimSpace(path) == "" {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("resolve home directory: %w", err)
 		}
 		path = filepath.Join(homeDir, defaultStoreFile)
 	}

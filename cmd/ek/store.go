@@ -342,7 +342,7 @@ func unwrapSoftwareKey(file *softwareKeyFile, passphrase []byte) ([]byte, error)
 
 func writeFileAtomic(path string, data []byte, mode os.FileMode) error {
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
 	tmp, err := os.CreateTemp(dir, ".ek-*")
