@@ -61,6 +61,15 @@ type recoveryWrap struct {
 	Ciphertext string `yaml:"ciphertext"`
 }
 
+type softwareKeyFile struct {
+	Version   int          `yaml:"version"`
+	Type      string       `yaml:"type"`
+	KeyID     string       `yaml:"key_id"`
+	CreatedAt string       `yaml:"created_at"`
+	KDF       recoveryKDF  `yaml:"kdf"`
+	Wrap      recoveryWrap `yaml:"wrap"`
+}
+
 func readStoreEnvelope(path string) (*storeEnvelope, error) {
 	info, err := os.Stat(path)
 	if err != nil {
@@ -261,6 +270,76 @@ func deriveRecoveryWrapKey(passphrase, salt []byte, params recoveryKDF) []byte {
 	return argon2.IDKey(passphrase, salt, params.Time, params.MemoryKiB, params.Threads, uint32(chacha20poly1305.KeySize))
 }
 
+func newSoftwareKeyFile(keyID string, key []byte, passphrase []byte, now time.Time) (*softwareKeyFile, error) {
+	salt, err := randomBytes(16)
+	if err != nil {
+		return nil, err
+	}
+	params := recoveryKDF{Algorithm: "argon2id", Time: 3, MemoryKiB: 64 * 1024, Threads: 4, Salt: base64.StdEncoding.EncodeToString(salt)}
+	wrapKey := deriveRecoveryWrapKey(passphrase, salt, params)
+	defer zeroBytes(wrapKey)
+	nonce, err := randomBytes(chacha20poly1305.NonceSizeX)
+	if err != nil {
+		return nil, err
+	}
+	aead, err := chacha20poly1305.NewX(wrapKey)
+	if err != nil {
+		return nil, err
+	}
+	ad := []byte("go-encrypted-text-kvs|software-key|" + keyID)
+	return &softwareKeyFile{Version: 1, Type: "ek-software-key", KeyID: keyID, CreatedAt: now.Format(time.RFC3339), KDF: params, Wrap: recoveryWrap{Algorithm: "xchacha20poly1305", Nonce: base64.StdEncoding.EncodeToString(nonce), Ciphertext: base64.StdEncoding.EncodeToString(aead.Seal(nil, nonce, key, ad))}}, nil
+}
+
+func unwrapSoftwareKey(file *softwareKeyFile, passphrase []byte) ([]byte, error) {
+	if file.Version != 1 {
+		return nil, fmt.Errorf("unsupported software key version %d", file.Version)
+	}
+	if file.Type != "ek-software-key" {
+		return nil, fmt.Errorf("unexpected software key type %q", file.Type)
+	}
+	if file.KDF.Algorithm != "argon2id" || file.Wrap.Algorithm != "xchacha20poly1305" {
+		return nil, fmt.Errorf("unsupported software key")
+	}
+	if file.KDF.Time != 3 || file.KDF.MemoryKiB != 64*1024 || file.KDF.Threads != 4 {
+		return nil, fmt.Errorf("unsupported software key KDF parameters")
+	}
+	salt, err := base64.StdEncoding.DecodeString(file.KDF.Salt)
+	if err != nil {
+		return nil, err
+	}
+	if len(salt) < 16 {
+		return nil, fmt.Errorf("invalid software key salt")
+	}
+	nonce, err := base64.StdEncoding.DecodeString(file.Wrap.Nonce)
+	if err != nil {
+		return nil, err
+	}
+	if len(nonce) != chacha20poly1305.NonceSizeX {
+		return nil, fmt.Errorf("invalid software key nonce length")
+	}
+	ciphertext, err := base64.StdEncoding.DecodeString(file.Wrap.Ciphertext)
+	if err != nil {
+		return nil, err
+	}
+	if len(ciphertext) < chacha20poly1305.Overhead {
+		return nil, fmt.Errorf("invalid software key ciphertext length")
+	}
+	wrapKey := deriveRecoveryWrapKey(passphrase, salt, file.KDF)
+	defer zeroBytes(wrapKey)
+	aead, err := chacha20poly1305.NewX(wrapKey)
+	if err != nil {
+		return nil, err
+	}
+	key, err := aead.Open(nil, nonce, ciphertext, []byte("go-encrypted-text-kvs|software-key|"+file.KeyID))
+	if err != nil {
+		return nil, err
+	}
+	if len(key) != chacha20poly1305.KeySize {
+		return nil, fmt.Errorf("unexpected software key length %d", len(key))
+	}
+	return key, nil
+}
+
 func writeFileAtomic(path string, data []byte, mode os.FileMode) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -287,7 +366,7 @@ func writeFileAtomic(path string, data []byte, mode os.FileMode) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmpPath, path)
+	return replaceFile(tmpPath, path)
 }
 
 func randomBytes(size int) ([]byte, error) {
