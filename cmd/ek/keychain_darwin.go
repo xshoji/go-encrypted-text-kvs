@@ -249,3 +249,11 @@ func keychainExists(keyID string) bool {
 	}
 	return exists == 1
 }
+
+func keystoreStore(keyID string, key []byte) error { return keychainStore(keyID, key) }
+func keystoreLoad(keyID string, prompt string) ([]byte, error) {
+	return keychainLoad(keyID, prompt)
+}
+func keystoreDelete(keyID string) error { return keychainDelete(keyID) }
+func keystoreExists(keyID string) bool  { return keychainExists(keyID) }
+func keystoreName() string              { return "Keychain" }
