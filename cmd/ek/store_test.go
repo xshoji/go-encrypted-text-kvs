@@ -180,6 +180,42 @@ func TestUnwrapRecoveryKeyRejectsUnsupportedKDFBeforeDerive(t *testing.T) {
 	}
 }
 
+func TestSoftwareKeyWrapUnwrap(t *testing.T) {
+	key, err := randomBytes(32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	file, err := newSoftwareKeyFile("test", key, []byte("correct passphrase"), time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := unwrapSoftwareKey(file, []byte("correct passphrase"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != string(key) {
+		t.Fatal("unwrapped key mismatch")
+	}
+	if _, err := unwrapSoftwareKey(file, []byte("wrong passphrase")); err == nil {
+		t.Fatal("wrong passphrase succeeded")
+	}
+}
+
+func TestSoftwareKeyYAMLDoesNotContainRawDEK(t *testing.T) {
+	key := []byte("01234567890123456789012345678901")
+	file, err := newSoftwareKeyFile("test", key, []byte("correct passphrase"), time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := yaml.Marshal(file)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), string(key)) || strings.Contains(string(encoded), base64.StdEncoding.EncodeToString(key)) {
+		t.Fatal("software key YAML contains raw DEK")
+	}
+}
+
 func TestReadStoreEnvelopeRejectsInsecurePermissions(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "store.yaml")
 	content := []byte("version: 1\ntype: encrypted-text-kvs\nkey_id: test\n")
