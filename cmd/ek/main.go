@@ -184,18 +184,18 @@ func runInit(filePath string, args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := keychainStore(keyID, key); err != nil {
-		return fmt.Errorf("store key in Keychain: %w", err)
+	if err := keystoreStore(keyID, key); err != nil {
+		return fmt.Errorf("store key in %s: %w", keystoreName(), err)
 	}
 	now := time.Now().UTC()
 	env := &storeEnvelope{Version: 1, Type: "encrypted-text-kvs", KeyID: keyID, CreatedAt: now.Format(time.RFC3339), UpdatedAt: now.Format(time.RFC3339)}
 	encoded, err := encryptStore(storePlaintext{Version: 1, Type: "kvs", Entries: map[string]string{}}, env, key, now)
 	if err != nil {
-		_ = keychainDelete(keyID)
+		_ = keystoreDelete(keyID)
 		return err
 	}
 	if err := writeFileAtomic(path, encoded, 0o600); err != nil {
-		_ = keychainDelete(keyID)
+		_ = keystoreDelete(keyID)
 		return err
 	}
 	fmt.Fprintf(os.Stderr, "initialized encrypted store: %s\n", path)
@@ -355,14 +355,14 @@ func runDestroy(filePath string, args []string) error {
 	if err := os.Rename(path, backupPath); err != nil {
 		return fmt.Errorf("move store file before destroy: %w", err)
 	}
-	if err := keychainDelete(env.KeyID); err != nil {
+	if err := keystoreDelete(env.KeyID); err != nil {
 		if restoreErr := os.Rename(backupPath, path); restoreErr != nil {
-			return fmt.Errorf("delete key from Keychain: %w; store file remains at %s and could not be restored to %s: %v", err, backupPath, path, restoreErr)
+			return fmt.Errorf("delete key from %s: %w; store file remains at %s and could not be restored to %s: %v", keystoreName(), err, backupPath, path, restoreErr)
 		}
-		return fmt.Errorf("delete key from Keychain: %w", err)
+		return fmt.Errorf("delete key from %s: %w", keystoreName(), err)
 	}
 	if err := os.Remove(backupPath); err != nil {
-		return fmt.Errorf("delete store file %s: %w; Keychain key was deleted", backupPath, err)
+		return fmt.Errorf("delete store file %s: %w; keystore key was deleted", backupPath, err)
 	}
 	fmt.Fprintf(os.Stderr, "destroyed encrypted store: %s\n", path)
 	return nil
@@ -401,9 +401,9 @@ func runRecoveryExportYAML(filePath string, args []string) error {
 		}
 		return err
 	}
-	key, err := keychainLoad(env.KeyID, "Authenticate to export decrypted YAML")
+	key, err := keystoreLoad(env.KeyID, "Authenticate to export decrypted YAML")
 	if err != nil {
-		return fmt.Errorf("read key from Keychain: %w", err)
+		return fmt.Errorf("read key from %s: %w", keystoreName(), err)
 	}
 	plain, err := decryptStoreYAML(env, key)
 	if err != nil {
@@ -441,9 +441,9 @@ func runRecoveryImportYAML(filePath string, args []string) error {
 		}
 		return err
 	}
-	key, err := keychainLoad(env.KeyID, "Authenticate to import decrypted YAML")
+	key, err := keystoreLoad(env.KeyID, "Authenticate to import decrypted YAML")
 	if err != nil {
-		return fmt.Errorf("read key from Keychain: %w", err)
+		return fmt.Errorf("read key from %s: %w", keystoreName(), err)
 	}
 	encoded, err := encryptStoreYAML(plain, env, key, time.Now().UTC())
 	if err != nil {
@@ -464,9 +464,9 @@ func runRecoveryExportKey(filePath string, args []string) error {
 	if err != nil {
 		return err
 	}
-	key, err := keychainLoad(env.KeyID, "Authenticate to export the recovery key")
+	key, err := keystoreLoad(env.KeyID, "Authenticate to export the recovery key")
 	if err != nil {
-		return fmt.Errorf("read key from Keychain: %w", err)
+		return fmt.Errorf("read key from %s: %w", keystoreName(), err)
 	}
 	passphrase, err := promptPassphrase("Recovery passphrase: ")
 	if err != nil {
@@ -519,7 +519,7 @@ func runRecoveryImportKey(filePath string, args []string) error {
 		return err
 	}
 	// If the store exists, verify the imported key matches it. A missing store is
-	// allowed so users can restore the Keychain item before restoring the file.
+	// allowed so users can restore the keystore item before restoring the file.
 	if env, err := readStoreEnvelope(path); err == nil {
 		if env.KeyID != recovery.KeyID {
 			return fmt.Errorf("recovery key_id %q does not match store key_id %q", recovery.KeyID, env.KeyID)
@@ -530,10 +530,10 @@ func runRecoveryImportKey(filePath string, args []string) error {
 	} else if !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	if keychainExists(recovery.KeyID) {
+	if keystoreExists(recovery.KeyID) {
 		return fmt.Errorf("decrypt key already exists in OS keystore")
 	}
-	return keychainStore(recovery.KeyID, key)
+	return keystoreStore(recovery.KeyID, key)
 }
 
 func resolveStorePath(path string) (string, error) {
@@ -567,9 +567,9 @@ func loadAuthenticatedStoreForWrite(filePath, prompt string) (storePlaintext, *s
 		}
 		return storePlaintext{}, nil, nil, "", err
 	}
-	key, err := keychainLoad(env.KeyID, prompt)
+	key, err := keystoreLoad(env.KeyID, prompt)
 	if err != nil {
-		return storePlaintext{}, nil, nil, "", fmt.Errorf("read key from Keychain: %w", err)
+		return storePlaintext{}, nil, nil, "", fmt.Errorf("read key from %s: %w", keystoreName(), err)
 	}
 	store, err := decryptStore(env, key)
 	if err != nil {
@@ -579,11 +579,16 @@ func loadAuthenticatedStoreForWrite(filePath, prompt string) (storePlaintext, *s
 }
 
 func promptPassphrase(prompt string) ([]byte, error) {
-	if !term.IsTerminal(int(os.Stdin.Fd())) {
+	tty, err := openTTY()
+	if err != nil {
+		return nil, err
+	}
+	defer tty.Close()
+	if !term.IsTerminal(int(tty.Fd())) {
 		return nil, fmt.Errorf("a terminal is required for passphrase input")
 	}
 	fmt.Fprint(os.Stderr, prompt)
-	value, err := term.ReadPassword(int(os.Stdin.Fd()))
+	value, err := term.ReadPassword(int(tty.Fd()))
 	fmt.Fprintln(os.Stderr)
 	if err != nil {
 		return nil, err
