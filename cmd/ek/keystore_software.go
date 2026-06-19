@@ -1,4 +1,4 @@
-//go:build linux || windows
+//go:build linux
 
 package main
 
@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"runtime"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -111,13 +110,6 @@ func softwareKeyPath(keyID string) (string, error) {
 }
 
 func softwareKeystoreBaseDir() (string, error) {
-	if runtime.GOOS == "windows" {
-		base := os.Getenv("AppData")
-		if base == "" {
-			return "", fmt.Errorf("AppData is not set")
-		}
-		return filepath.Join(base, "ek"), nil
-	}
 	base := os.Getenv("XDG_CONFIG_HOME")
 	if base == "" {
 		home, err := os.UserHomeDir()

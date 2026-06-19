@@ -4,7 +4,7 @@
 
 Use it to store API keys and secrets locally without committing `.env` files.
 
-The command name is `ek` (pronounced "E-K"). It stores encrypted data in a YAML file, with the data encryption key protected by the macOS Keychain or a passphrase-protected local software keystore.
+The command name is `ek` (pronounced "E-K"). It stores encrypted data in a YAML file, with the data encryption key protected by the macOS Keychain, Windows DPAPI, or a passphrase-protected Linux software keystore.
 
 
 [demo.mp4](https://github.com/user-attachments/assets/bfe16e5e-5694-418f-a721-bd6cee5db3b5)
@@ -14,7 +14,8 @@ The command name is `ek` (pronounced "E-K"). It stores encrypted data in a YAML 
 ## Requirements
 
 - macOS: Keychain-backed storage
-- Linux / Windows: passphrase-protected local key storage
+- Windows: DPAPI-backed current-user storage
+- Linux: passphrase-protected local key storage
 
 ## Install
 
@@ -200,17 +201,19 @@ Specify `--file PATH` before the command name, for example `ek --file store.yaml
 
 The encrypted store file is written with file mode `0600`.
 
-On Linux and Windows, the local software key file is stored separately:
+Platform key material is stored separately:
 
 - Linux: `${XDG_CONFIG_HOME:-$HOME/.config}/ek/keys/<key_id>.yaml`
-- Windows: `%AppData%\ek\keys\<key_id>.yaml`
+- Windows: `%LocalAppData%\ek\dpapi-keys\<key_id>.yaml`
 
 ## Security notes
 
 - File contents are encrypted with XChaCha20-Poly1305.
 - On macOS, the data encryption key is stored in the macOS Keychain and reading or changing the store requires device owner authentication.
-- On Linux and Windows, the data encryption key is protected by a local passphrase-wrapped key file. This is not hardware-backed or biometric-protected.
-- If an attacker obtains both the encrypted store and the local key file, security depends on the strength of the local key passphrase.
+- On Windows, the data encryption key is protected by DPAPI for the current Windows user. Normal commands do not prompt for a passphrase.
+- Windows DPAPI does not provide a guaranteed per-command Windows Hello prompt; malware running as the same Windows user may also call DPAPI.
+- On Linux, the data encryption key is protected by a local passphrase-wrapped key file. This is not hardware-backed or biometric-protected.
+- If an attacker obtains both the encrypted store and the Linux local key file, security depends on the strength of the local key passphrase.
 - Plaintext values, recovery passphrases, and encryption keys should not be logged or passed through environment variables.
 
 

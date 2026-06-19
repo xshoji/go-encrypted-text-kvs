@@ -4,7 +4,7 @@ package main
 
 import "fmt"
 
-const unsupportedOSError = "unsupported OS: ek supports macOS Keychain and Linux/Windows software keystore"
+const unsupportedOSError = "unsupported OS: ek supports macOS Keychain, Windows DPAPI, and Linux software keystore"
 
 func keystoreStore(keyID string, key []byte) error { return fmt.Errorf(unsupportedOSError) }
 func keystoreLoad(keyID string, prompt string) ([]byte, error) {

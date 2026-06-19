@@ -4,12 +4,13 @@
 
 `go-encrypted-text-kvs` は、暗号化されたローカルファイルにテキストの key-value を保存するシンプルな CLI ツールである。コマンド名は `ek` とする。
 
-初回 `ek init` で暗号化ファイルを作成し、復号に使う 32-byte DEK(Data Encryption Key) を keystore に保存する。macOS では Keychain、Linux / Windows では passphrase-protected local software keystore を使う。
+初回 `ek init` で暗号化ファイルを作成し、復号に使う 32-byte DEK(Data Encryption Key) を keystore に保存する。macOS では Keychain、Windows では DPAPI、Linux では passphrase-protected local software keystore を使う。
 
 既存実装 `/Users/user/Develop/ghq/github.com/xshoji/go-keychain-text-crypto` の以下の方針をベースにする。
 
 - macOS Keychain + LocalAuthentication による DEK 保護
-- Linux / Windows では Argon2id + XChaCha20-Poly1305 による passphrase-wrapped DEK 保護
+- Windows DPAPI current-user scope による DEK 保護
+- Linux では Argon2id + XChaCha20-Poly1305 による passphrase-wrapped DEK 保護
 - XChaCha20-Poly1305 によるファイル暗号化
 - Argon2id + XChaCha20-Poly1305 による recovery key wrap
 - YAML envelope 形式
@@ -20,12 +21,32 @@
 
 macOS は Keychain に DEK を保存し、読み出し時に LocalAuthentication で device owner authentication を要求する。
 
-Linux / Windows は passphrase-protected local software keystore を使う。`ek init` はローカル鍵 passphrase を確認入力させ、DEK を Argon2id + XChaCha20-Poly1305 で wrap した YAML ファイルとして保存する。通常コマンド実行時は `Local key passphrase:` を TTY で prompt する。
+Windows は DPAPI current-user scope で DEK を保護し、protected blob をローカル YAML ファイルとして保存する。`ek init` / `ek set` / `ek get` 等の通常操作では passphrase を要求しない。復号できるのは原則として同じ Windows ユーザー / マシンで実行されるプロセスである。
+
+Windows DPAPI key file の保存先:
+
+- `%LocalAppData%\ek\dpapi-keys\<key_id>.yaml`
+- `%LocalAppData%` が未設定の場合のみ `%AppData%\ek\dpapi-keys\<key_id>.yaml`
+
+Windows DPAPI key file 形式:
+
+```yaml
+version: 1
+type: ek-windows-dpapi-key
+key_id: "..."
+created_at: "..."
+scope: current_user
+protection: windows-dpapi
+blob:
+  encoding: base64
+  data: "..."
+```
+
+Linux は passphrase-protected local software keystore を使う。`ek init` はローカル鍵 passphrase を確認入力させ、DEK を Argon2id + XChaCha20-Poly1305 で wrap した YAML ファイルとして保存する。通常コマンド実行時は `Local key passphrase:` を TTY で prompt する。
 
 software keystore の保存先:
 
 - Linux: `${XDG_CONFIG_HOME:-$HOME/.config}/ek/keys/<key_id>.yaml`
-- Windows: `%AppData%\ek\keys\<key_id>.yaml`
 
 software key file 形式:
 
@@ -46,12 +67,14 @@ wrap:
   ciphertext: "..."
 ```
 
-Linux / Windows fallback は hardware-backed / biometric-protected ではない。store file 単体の漏洩や casual inspection には有効だが、encrypted store と software key file の両方を取得された場合は passphrase 強度に依存する。malware、root/admin compromise、keylogger、弱い passphrase brute force は防げない。
+Windows DPAPI は store file や DPAPI key file のオフライン漏洩、別ユーザーからの casual inspection への防御として使う。Windows Hello / TPM は OS 設定に応じて Windows サインインや DPAPI master key 保護を強化し得るが、ek は通常操作ごとの生体認証 prompt を保証しない。同じ Windows ユーザーとして動く malware、local admin / SYSTEM、メモリ取得、DPAPI master key compromise は防げない。別マシン / 別ユーザーへ移行する場合は DPAPI key file をコピーせず、`ek recovery export-key` / `ek recovery import-key` を使う。
+
+Linux software keystore は hardware-backed / biometric-protected ではない。store file 単体の漏洩や casual inspection には有効だが、encrypted store と software key file の両方を取得された場合は passphrase 強度に依存する。malware、root/admin compromise、keylogger、弱い passphrase brute force は防げない。
 
 macOS / Linux / Windows 以外で操作コマンドを実行した場合は、stderr に以下を出して非 zero exit する。
 
 ```text
-unsupported OS: ek supports macOS Keychain and Linux/Windows software keystore
+unsupported OS: ek supports macOS Keychain, Windows DPAPI, and Linux software keystore
 ```
 
 `--help` や `--version` は OS に関係なく動作してよい。
@@ -616,14 +639,14 @@ insecure file permissions: expected 0600
 
 | case | message example |
 | --- | --- |
-| unsupported OS | `unsupported OS: ek supports macOS Keychain and Linux/Windows software keystore` |
+| unsupported OS | `unsupported OS: ek supports macOS Keychain, Windows DPAPI, and Linux software keystore` |
 | file not initialized | `not initialized: run "ek init"` |
 | already initialized | `already initialized: .ek.yaml` |
 | invalid key | `invalid key name: must match [A-Za-z_][A-Za-z0-9_]*` |
 | invalid value | `invalid value: carriage return and NUL bytes are not supported` |
 | key not found | `key not found: API_TOKEN` |
 | auth canceled / failed | `authentication failed or canceled` |
-| missing keystore DEK | `local software key not found: run "ek recovery import-key" to restore it` |
+| missing keystore DEK | `local software key not found: run "ek recovery import-key" to restore it` / `Windows DPAPI key not found: run "ek recovery import-key" to restore it` |
 | decrypt failed | `failed to decrypt store: file may be corrupted or key is wrong` |
 | recovery unwrap failed | `failed to unwrap recovery key: wrong passphrase or corrupted recovery file` |
 | insecure permissions | `insecure file permissions: expected 0600` |
@@ -657,13 +680,15 @@ internal/shellquote/
 
 ```text
 keystore_darwin.go
+keystore_dpapi_windows.go
+keystore_software.go
 keystore_unsupported.go
 ```
 
 `keystore_unsupported.go` は操作時に常に以下の error を返す。
 
 ```text
-unsupported OS: ek supports macOS Keychain and Linux/Windows software keystore
+unsupported OS: ek supports macOS Keychain, Windows DPAPI, and Linux software keystore
 ```
 
 既存 `go-keychain-text-crypto` から優先して流用する実装:

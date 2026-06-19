@@ -394,10 +394,17 @@ func zeroBytes(data []byte) {
 }
 
 var keyPattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+var keyIDPattern = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`)
 
 func validateKey(key string) error {
 	if !keyPattern.MatchString(key) {
 		return validationError{"invalid key name: must match [A-Za-z_][A-Za-z0-9_]*"}
+	}
+	return nil
+}
+func validateKeyID(keyID string) error {
+	if !keyIDPattern.MatchString(keyID) {
+		return fmt.Errorf("invalid key_id")
 	}
 	return nil
 }
