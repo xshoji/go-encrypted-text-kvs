@@ -45,10 +45,10 @@ ek get API_TOKEN
 ek list
 ```
 
-Rename or copy a value:
+Move or copy a value:
 
 ```sh
-ek rename API_TOKEN NEW_API_TOKEN
+ek mv API_TOKEN NEW_API_TOKEN
 ek copy NEW_API_TOKEN
 ```
 
@@ -107,9 +107,9 @@ Keys must match:
 
 Values must be UTF-8 text. Multiline values are supported; NUL bytes and carriage returns are not.
 
-### `ek rename OLD_KEY NEW_KEY`
+### `ek mv OLD_KEY NEW_KEY`
 
-Renames a key without changing its value. Fails if `OLD_KEY` does not exist or `NEW_KEY` already exists.
+Moves a key without changing its value. Fails if `OLD_KEY` does not exist or `NEW_KEY` already exists.
 
 ### `ek copy KEY`
 

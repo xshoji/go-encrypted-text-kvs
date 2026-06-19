@@ -86,11 +86,11 @@ func run(args []string) error {
 			return err
 		}
 		return runSet(filePath, rest[1:])
-	case "rename":
+	case "mv":
 		if err := ensureSupportedOS(); err != nil {
 			return err
 		}
-		return runRename(filePath, rest[1:])
+		return runMove(filePath, rest[1:])
 	case "copy":
 		if err := ensureSupportedOS(); err != nil {
 			return err
@@ -155,7 +155,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  ek [--file PATH] list")
 	fmt.Fprintln(w, "  ek [--file PATH] get KEY")
 	fmt.Fprintln(w, "  ek [--file PATH] set KEY [VALUE]")
-	fmt.Fprintln(w, "  ek [--file PATH] rename OLD_KEY NEW_KEY")
+	fmt.Fprintln(w, "  ek [--file PATH] mv OLD_KEY NEW_KEY")
 	fmt.Fprintln(w, "  ek [--file PATH] copy KEY")
 	fmt.Fprintln(w, "  ek [--file PATH] unset KEY")
 	fmt.Fprintln(w, "  ek [--file PATH] export-env [KEY...]")
@@ -289,9 +289,9 @@ func runSet(filePath string, args []string) error {
 	return writeFileAtomic(path, encoded, 0o600)
 }
 
-func runRename(filePath string, args []string) error {
+func runMove(filePath string, args []string) error {
 	if len(args) != 2 {
-		return usageError{"rename requires OLD_KEY and NEW_KEY"}
+		return usageError{"mv requires OLD_KEY and NEW_KEY"}
 	}
 	oldKey := args[0]
 	newKey := args[1]
@@ -304,7 +304,7 @@ func runRename(filePath string, args []string) error {
 	if oldKey == newKey {
 		return nil
 	}
-	store, env, key, path, err := loadAuthenticatedStoreForWrite(filePath, "Authenticate to rename encrypted key")
+	store, env, key, path, err := loadAuthenticatedStoreForWrite(filePath, "Authenticate to move encrypted key")
 	if err != nil {
 		return err
 	}
