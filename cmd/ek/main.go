@@ -2,11 +2,13 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -84,6 +86,16 @@ func run(args []string) error {
 			return err
 		}
 		return runSet(filePath, rest[1:])
+	case "rename":
+		if err := ensureSupportedOS(); err != nil {
+			return err
+		}
+		return runRename(filePath, rest[1:])
+	case "copy":
+		if err := ensureSupportedOS(); err != nil {
+			return err
+		}
+		return runCopy(filePath, rest[1:])
 	case "unset":
 		if err := ensureSupportedOS(); err != nil {
 			return err
@@ -143,6 +155,8 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  ek [--file PATH] list")
 	fmt.Fprintln(w, "  ek [--file PATH] get KEY")
 	fmt.Fprintln(w, "  ek [--file PATH] set KEY [VALUE]")
+	fmt.Fprintln(w, "  ek [--file PATH] rename OLD_KEY NEW_KEY")
+	fmt.Fprintln(w, "  ek [--file PATH] copy KEY")
 	fmt.Fprintln(w, "  ek [--file PATH] unset KEY")
 	fmt.Fprintln(w, "  ek [--file PATH] export-env [KEY...]")
 	fmt.Fprintln(w, "  ek [--file PATH] unset-env")
@@ -150,6 +164,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  ek [--file PATH] recovery export-key")
 	fmt.Fprintln(w, "  ek [--file PATH] recovery import-key")
 	fmt.Fprintln(w, "  ek [--file PATH] recovery export-yaml")
+	fmt.Fprintln(w, "  ek [--file PATH] recovery export-json")
 	fmt.Fprintln(w, "  ek [--file PATH] recovery import-yaml")
 }
 
@@ -274,6 +289,66 @@ func runSet(filePath string, args []string) error {
 	return writeFileAtomic(path, encoded, 0o600)
 }
 
+func runRename(filePath string, args []string) error {
+	if len(args) != 2 {
+		return usageError{"rename requires OLD_KEY and NEW_KEY"}
+	}
+	oldKey := args[0]
+	newKey := args[1]
+	if err := validateKey(oldKey); err != nil {
+		return err
+	}
+	if err := validateKey(newKey); err != nil {
+		return err
+	}
+	if oldKey == newKey {
+		return nil
+	}
+	store, env, key, path, err := loadAuthenticatedStoreForWrite(filePath, "Authenticate to rename encrypted key")
+	if err != nil {
+		return err
+	}
+	value, ok := store.Entries[oldKey]
+	if !ok {
+		return fmt.Errorf("key not found: %s", oldKey)
+	}
+	if _, ok := store.Entries[newKey]; ok {
+		return fmt.Errorf("key already exists: %s", newKey)
+	}
+	delete(store.Entries, oldKey)
+	store.Entries[newKey] = value
+	encoded, err := encryptStore(store, env, key, time.Now().UTC())
+	if err != nil {
+		return err
+	}
+	return writeFileAtomic(path, encoded, 0o600)
+}
+
+func runCopy(filePath string, args []string) error {
+	if len(args) != 1 {
+		return usageError{"copy requires KEY"}
+	}
+	keyName := args[0]
+	if err := validateKey(keyName); err != nil {
+		return err
+	}
+	store, _, err := loadAuthenticatedStore(filePath, "Authenticate to copy encrypted value")
+	if err != nil {
+		return err
+	}
+	value, ok := store.Entries[keyName]
+	if !ok {
+		return fmt.Errorf("key not found: %s", keyName)
+	}
+	if err := writeClipboard(value); err != nil {
+		return err
+	}
+	go clearClipboardAfter(30*time.Second, value)
+	fmt.Fprintln(os.Stderr, "copied to clipboard; will clear in 30 seconds")
+	time.Sleep(30 * time.Second)
+	return nil
+}
+
 func runUnset(filePath string, args []string) error {
 	if len(args) != 1 {
 		return usageError{"unset requires KEY"}
@@ -344,6 +419,13 @@ func runDestroy(filePath string, args []string) error {
 	if len(args) != 0 {
 		return usageError{"destroy does not accept positional arguments"}
 	}
+	confirm, err := promptLine("Type DELETE to continue: ")
+	if err != nil {
+		return err
+	}
+	if confirm != "DELETE" {
+		return fmt.Errorf("destroy cancelled")
+	}
 	_, env, key, path, err := loadAuthenticatedStoreForWrite(filePath, "Authenticate to destroy encrypted store")
 	if err != nil {
 		return err
@@ -379,6 +461,8 @@ func runRecovery(filePath string, args []string) error {
 		return runRecoveryImportKey(filePath, args[1:])
 	case "export-yaml":
 		return runRecoveryExportYAML(filePath, args[1:])
+	case "export-json":
+		return runRecoveryExportJSON(filePath, args[1:])
 	case "import-yaml":
 		return runRecoveryImportYAML(filePath, args[1:])
 	default:
@@ -413,6 +497,23 @@ func runRecoveryExportYAML(filePath string, args []string) error {
 		return fmt.Errorf("failed to parse decrypted store: %w", err)
 	}
 	_, err = os.Stdout.Write(plain)
+	return err
+}
+
+func runRecoveryExportJSON(filePath string, args []string) error {
+	if len(args) != 0 {
+		return usageError{"recovery export-json does not accept positional arguments"}
+	}
+	store, _, err := loadAuthenticatedStore(filePath, "Authenticate to export decrypted JSON")
+	if err != nil {
+		return err
+	}
+	encoded, err := json.MarshalIndent(store, "", "  ")
+	if err != nil {
+		return err
+	}
+	encoded = append(encoded, '\n')
+	_, err = os.Stdout.Write(encoded)
 	return err
 }
 
@@ -600,6 +701,23 @@ func promptPassphrase(prompt string) ([]byte, error) {
 	return value, nil
 }
 
+func promptLine(prompt string) (string, error) {
+	tty, err := openTTY()
+	if err != nil {
+		return "", err
+	}
+	defer tty.Close()
+	if !term.IsTerminal(int(tty.Fd())) {
+		return "", fmt.Errorf("a terminal is required for confirmation input")
+	}
+	fmt.Fprint(os.Stderr, prompt)
+	var value string
+	if _, err := fmt.Fscanln(tty, &value); err != nil {
+		return "", err
+	}
+	return value, nil
+}
+
 func sortedKeys(m map[string]string) []string {
 	keys := make([]string, 0, len(m))
 	for k := range m {
@@ -607,4 +725,30 @@ func sortedKeys(m map[string]string) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+func writeClipboard(value string) error {
+	cmd := exec.Command("pbcopy")
+	cmd.Stdin = strings.NewReader(value)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("copy to clipboard: %w", err)
+	}
+	return nil
+}
+
+func readClipboard() (string, error) {
+	content, err := exec.Command("pbpaste").Output()
+	if err != nil {
+		return "", fmt.Errorf("read clipboard: %w", err)
+	}
+	return string(content), nil
+}
+
+func clearClipboardAfter(delay time.Duration, expected string) {
+	time.Sleep(delay)
+	current, err := readClipboard()
+	if err != nil || current != expected {
+		return
+	}
+	_ = writeClipboard("")
 }

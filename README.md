@@ -2,6 +2,8 @@
 
 `go-encrypted-text-kvs` is a small CLI tool for storing text key-value pairs in an encrypted local file.
 
+Use it to store API keys and secrets locally without committing `.env` files.
+
 The command name is `ek` (pronounced "E-K"). It stores encrypted data in a YAML file, with the data encryption key protected by the macOS Keychain or a passphrase-protected local software keystore.
 
 
@@ -43,6 +45,13 @@ ek get API_TOKEN
 ek list
 ```
 
+Rename or copy a value:
+
+```sh
+ek rename API_TOKEN NEW_API_TOKEN
+ek copy NEW_API_TOKEN
+```
+
 Delete a value:
 
 ```sh
@@ -54,6 +63,8 @@ Destroy the encrypted store and its keystore item:
 ```sh
 ek destroy
 ```
+
+You must type `DELETE` at the confirmation prompt before deletion.
 
 ## Commands
 
@@ -95,6 +106,14 @@ Keys must match:
 ```
 
 Values must be UTF-8 text. Multiline values are supported; NUL bytes and carriage returns are not.
+
+### `ek rename OLD_KEY NEW_KEY`
+
+Renames a key without changing its value. Fails if `OLD_KEY` does not exist or `NEW_KEY` already exists.
+
+### `ek copy KEY`
+
+Copies the value for `KEY` to the clipboard and clears it after 30 seconds if unchanged.
 
 ### `ek unset KEY`
 
@@ -144,6 +163,17 @@ Exports all decrypted key-values as plaintext YAML:
 ```sh
 umask 077
 ek recovery export-yaml > ek-plaintext.yaml
+```
+
+This file contains secrets. Protect it and delete it when no longer needed.
+
+### `ek recovery export-json`
+
+Exports all decrypted key-values as plaintext JSON:
+
+```sh
+umask 077
+ek recovery export-json > ek-plaintext.json
 ```
 
 This file contains secrets. Protect it and delete it when no longer needed.
