@@ -1,6 +1,6 @@
 # go-encrypted-text-kvs
 
-`ek` is a small CLI for keeping local development secrets out of `.env` files.
+`ek` (pronounced "E-K") is a small CLI for keeping local development secrets out of `.env` files.
 
 Secrets live in a single encrypted store on your machine. You add them with `ek set`, read them one at a time with `ek get`, and load them into a shell with `ek export-env`. No plaintext secrets file sits in your working tree, so there is nothing to accidentally commit.
 
