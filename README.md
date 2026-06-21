@@ -1,19 +1,20 @@
 # go-encrypted-text-kvs
 
-`ek` (pronounced "E-K") is a small CLI for keeping local development secrets out of `.env` files.
-
-Secrets live in a single encrypted store on your machine. You add them with `ek set`, read them one at a time with `ek get`, and load them into a shell with `ek export-env`. No plaintext secrets file sits in your working tree, so there is nothing to accidentally commit.
+`ek` (pronounced "E-K") is a tiny encrypted replacement for `.env` files in local development.
 
 ## Why ek
 
 `.env` is the default way to manage local secrets, and it fails in predictable ways:
 
+- **Plaintext on disk** — `.env` sits in cleartext, so file indexers, backup tools, and any process with read access can see your secrets.
+- **AI assistants** — AI coding assistants like Claude Code, Cursor, and GitHub Copilot read your project files as part of normal operation, so they see every secret in `.env` automatically — and may send file contents to remote model APIs.
+- **Screen-share exposure** — opening `.env` in an editor during a call or screen share leaks every line at once.
 - **Commit accidents** — a `.env` slipped into git history leaks every secret it held, and `git rm` does not undo the leak.
-- **Plaintext on disk** — `.env` sits in cleartext, so AI coding assistants, file indexers, and backups all see your secrets.
 - **Lost inventory** — the same key reused across projects scatters copies you can't track.
-- **Screen-share exposure** — opening `.env` in an editor or pasting it into an AI prompt leaks every line at once.
 
 `ek` keeps secrets in one encrypted file and never writes plaintext to disk. The decryption key stays in your OS keystore, so a commit can't leak what was never written.
+
+`ek` is designed for local development and personal secret storage. It is not a team secret management system.
 
 ## Demo
 
@@ -32,11 +33,13 @@ The store is encrypted with XChaCha20-Poly1305. The keystore backing depends on 
 
 ## Supported platforms
 
-`ek` stores the data encryption key in your OS keystore. The experience differs by OS:
+`ek` is primarily built for macOS. Windows is also supported. Linux currently has a basic, software-only implementation.
 
-- **macOS** — the key lives in the Keychain. Reading or changing the store prompts Touch ID or your login password via LocalAuthentication. No passphrase to remember.
-- **Windows** — the key is protected by DPAPI for the current Windows user. Normal commands do not prompt; decryption is tied to your Windows account.
-- **Linux** — there is no hardware-backed keystore, so `ek init` asks for a local key passphrase and stores the key as a passphrase-wrapped file under `${XDG_CONFIG_HOME:-$HOME/.config}/ek/keys/`. Each command prompts for this passphrase.
+| OS | Status | Key protection | Auth on access |
+|---|---|---|---|
+| macOS | Primary | Keychain + LocalAuthentication | Touch ID / login password |
+| Windows | Supported | DPAPI (current user) | None |
+| Linux | Basic | Passphrase-wrapped local file | Local passphrase |
 
 For the threat model on each platform, see [Security notes](#security-notes).
 
