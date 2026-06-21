@@ -264,6 +264,15 @@ ek recovery import-yaml < ek-plaintext.yaml
 
 This keeps the existing store key ID and does not modify the platform keystore.
 
+### `ek --version` / `ek -v`
+
+Prints the `ek` version. The version is injected at build time via `-ldflags`; a plain `go build` reports `0.0.0-dev`.
+
+```sh
+ek --version
+ek -v
+```
+
 ## File location
 
 Store file resolution order:
@@ -299,6 +308,9 @@ Platform key material is stored separately:
 ```bash
 # Go
 go build -ldflags="-s" -trimpath -o ek ./...
+
+# Go with a version string (matches GoReleaser)
+go build -ldflags="-s -X main.Version=$(git describe --tags --always)" -trimpath -o ek ./...
 
 # Cross-compiling with GoReleaser
 goreleaser build --snapshot --clean

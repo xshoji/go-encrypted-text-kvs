@@ -56,6 +56,10 @@ func run(args []string) error {
 		printUsage(os.Stdout)
 		return nil
 	}
+	if args[0] == "version" || args[0] == "-v" || args[0] == "--version" {
+		printVersion(os.Stdout)
+		return nil
+	}
 
 	filePath, rest, err := parseGlobalFlags(args)
 	if err != nil {
@@ -147,8 +151,13 @@ func parseGlobalFlags(args []string) (string, []string, error) {
 	return filePath, nil, nil
 }
 
+func printVersion(w io.Writer) {
+	fmt.Fprintf(w, "ek version %s\n", Version)
+}
+
 func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "ek")
+	fmt.Fprintf(w, "version %s\n", Version)
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "Usage:")
 	fmt.Fprintln(w, "  ek [--file PATH] init")
@@ -166,6 +175,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  ek [--file PATH] recovery export-yaml")
 	fmt.Fprintln(w, "  ek [--file PATH] recovery export-json")
 	fmt.Fprintln(w, "  ek [--file PATH] recovery import-yaml")
+	fmt.Fprintln(w, "  ek --version | -v | version")
 }
 
 func newFlagSet(name string) *flag.FlagSet {

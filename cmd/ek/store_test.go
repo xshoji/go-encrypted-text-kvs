@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"encoding/base64"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -233,4 +235,60 @@ func readEnvelopeBytes(data []byte) (*storeEnvelope, error) {
 		return nil, err
 	}
 	return &env, nil
+}
+
+func TestPrintVersion(t *testing.T) {
+	var buf bytes.Buffer
+	printVersion(&buf)
+	got := buf.String()
+	want := "ek version " + Version + "\n"
+	if got != want {
+		t.Fatalf("printVersion = %q, want %q", got, want)
+	}
+}
+
+func TestPrintUsageIncludesVersion(t *testing.T) {
+	var buf bytes.Buffer
+	printUsage(&buf)
+	got := buf.String()
+	if !strings.HasPrefix(got, "ek\n") {
+		t.Fatalf("printUsage should start with ek header: %q", got)
+	}
+	if !strings.Contains(got, "version "+Version+"\n") {
+		t.Fatalf("printUsage should contain version line: %q", got)
+	}
+	if !strings.Contains(got, "ek --version | -v | version") {
+		t.Fatalf("printUsage should document version flags: %q", got)
+	}
+}
+
+func TestRunRoutesVersionFlags(t *testing.T) {
+	for _, arg := range []string{"--version", "-v", "version"} {
+		t.Run(arg, func(t *testing.T) {
+			r, w, err := os.Pipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			old := os.Stdout
+			os.Stdout = w
+			defer func() { os.Stdout = old }()
+
+			errCh := make(chan error, 1)
+			go func() {
+				defer w.Close()
+				errCh <- run([]string{arg})
+			}()
+			out, readErr := io.ReadAll(r)
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if err := <-errCh; err != nil {
+				t.Fatalf("run(%q) returned error: %v", arg, err)
+			}
+			want := "ek version " + Version + "\n"
+			if string(out) != want {
+				t.Fatalf("run(%q) stdout = %q, want %q", arg, out, want)
+			}
+		})
+	}
 }

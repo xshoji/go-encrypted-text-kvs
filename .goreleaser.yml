@@ -12,7 +12,7 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - -s -X github.com/xshoji/go-encrypted-text-kvs/cmd/ek/main.Version={{.Version}}
+      - -s -X main.Version={{.Version}}
     env:
       - CGO_ENABLED=1
 archives:
