@@ -1,21 +1,80 @@
 # go-encrypted-text-kvs
 
-`go-encrypted-text-kvs` is a small CLI tool for storing text key-value pairs in an encrypted local file.
+`ek` is a small CLI for keeping local development secrets out of `.env` files.
 
-Use it to store API keys and secrets locally without committing `.env` files.
+Secrets live in a single encrypted store on your machine. You add them with `ek set`, read them one at a time with `ek get`, and load them into a shell with `ek export-env`. No plaintext secrets file sits in your working tree, so there is nothing to accidentally commit.
 
-The command name is `ek` (pronounced "E-K"). It stores encrypted data in a YAML file, with the data encryption key protected by the macOS Keychain, Windows DPAPI, or a passphrase-protected Linux software keystore.
+## Why ek
 
+`.env` is the default way to manage local secrets, and it fails in predictable ways:
+
+- **Commit accidents** — a `.env` slipped into git history leaks every secret it held, and `git rm` does not undo the leak.
+- **Plaintext on disk** — `.env` sits in cleartext, so AI coding assistants, file indexers, and backups all see your secrets.
+- **Lost inventory** — the same key reused across projects scatters copies you can't track.
+- **Screen-share exposure** — opening `.env` in an editor or pasting it into an AI prompt leaks every line at once.
+
+`ek` keeps secrets in one encrypted file and never writes plaintext to disk. The decryption key stays in your OS keystore, so a commit can't leak what was never written.
+
+## Demo
 
 [demo.mp4](https://github.com/user-attachments/assets/bfe16e5e-5694-418f-a721-bd6cee5db3b5)
 
+## How it works
 
+`ek` keeps two things separate:
 
-## Requirements
+1. **The encrypted store** — a single YAML file (`~/.ek.yaml` by default) holding only ciphertext and an envelope. No plaintext values are ever written to disk.
+2. **The data encryption key** — a 32-byte key stored in your OS keystore, never in the store file.
 
-- macOS: Keychain-backed storage
-- Windows: DPAPI-backed current-user storage
-- Linux: passphrase-protected local key storage
+On every operation, `ek` reads the key from the keystore, decrypts the store in memory, performs the change, re-encrypts with a fresh nonce, and writes the file back atomically with mode `0600`. Plaintext exists only in memory.
+
+The store is encrypted with XChaCha20-Poly1305. The keystore backing depends on your OS.
+
+## Supported platforms
+
+`ek` stores the data encryption key in your OS keystore. The experience differs by OS:
+
+- **macOS** — the key lives in the Keychain. Reading or changing the store prompts Touch ID or your login password via LocalAuthentication. No passphrase to remember.
+- **Windows** — the key is protected by DPAPI for the current Windows user. Normal commands do not prompt; decryption is tied to your Windows account.
+- **Linux** — there is no hardware-backed keystore, so `ek init` asks for a local key passphrase and stores the key as a passphrase-wrapped file under `${XDG_CONFIG_HOME:-$HOME/.config}/ek/keys/`. Each command prompts for this passphrase.
+
+For the threat model on each platform, see [Security notes](#security-notes).
+
+## Use cases
+
+Every workflow below starts with `ek init`, which creates the encrypted store at `~/.ek.yaml` and saves the data encryption key in your OS keystore. Run it once per store; then use `ek set` / `ek get` / `ek export-env` as needed.
+
+### Replace `.env` in a personal project
+
+```sh
+ek set OPENAI_API_KEY sk-...
+ek set STRIPE_SECRET_KEY sk_live_...
+eval "$(ek export-env)"          # load into the current shell
+```
+
+No `.env` file, nothing to gitignore, nothing to leak.
+
+### Keep secrets off your screen on calls
+
+Instead of opening `.env` in an editor during a screen share or pasting it into an AI prompt, fetch one value at a time:
+
+```sh
+ek get STRIPE_SECRET_KEY | pbcopy
+```
+
+No plaintext file is ever on screen.
+
+### Switch secrets per project without juggling `.env` files
+
+Point each project at its own encrypted store with `--file` or `EK_FILE`:
+
+```sh
+ek --file ~/stores/work.yaml set JIRA_TOKEN ...
+ek --file ~/stores/personal.yaml set GITHUB_TOKEN ...
+EK_FILE=~/stores/work.yaml ek export-env
+```
+
+One encrypted store per project, no plaintext files scattered across project directories.
 
 ## Install
 
