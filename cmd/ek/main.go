@@ -156,7 +156,7 @@ func printUsage(w io.Writer) {
 	fmt.Fprintln(w, "  ek [--file PATH] get KEY")
 	fmt.Fprintln(w, "  ek [--file PATH] set KEY [VALUE]")
 	fmt.Fprintln(w, "  ek [--file PATH] mv OLD_KEY NEW_KEY")
-	fmt.Fprintln(w, "  ek [--file PATH] copy KEY")
+	fmt.Fprintln(w, "  ek [--file PATH] copy [--ttl DURATION] KEY")
 	fmt.Fprintln(w, "  ek [--file PATH] unset KEY")
 	fmt.Fprintln(w, "  ek [--file PATH] export-env [KEY...]")
 	fmt.Fprintln(w, "  ek [--file PATH] unset-env")
@@ -325,12 +325,21 @@ func runMove(filePath string, args []string) error {
 }
 
 func runCopy(filePath string, args []string) error {
-	if len(args) != 1 {
+	fs := newFlagSet("copy")
+	var ttl time.Duration
+	fs.DurationVar(&ttl, "ttl", 30*time.Second, "lifetime of the clipboard contents before clearing")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if fs.NArg() != 1 {
 		return usageError{"copy requires KEY"}
 	}
-	keyName := args[0]
+	keyName := fs.Arg(0)
 	if err := validateKey(keyName); err != nil {
 		return err
+	}
+	if ttl <= 0 {
+		return validationError{fmt.Sprintf("--ttl must be a positive duration, got %s", ttl)}
 	}
 	store, _, err := loadAuthenticatedStore(filePath, "Authenticate to copy encrypted value")
 	if err != nil {
@@ -343,9 +352,8 @@ func runCopy(filePath string, args []string) error {
 	if err := writeClipboard(value); err != nil {
 		return err
 	}
-	go clearClipboardAfter(30*time.Second, value)
-	fmt.Fprintln(os.Stderr, "copied to clipboard; will clear in 30 seconds")
-	time.Sleep(30 * time.Second)
+	fmt.Fprintf(os.Stderr, "copied to clipboard; will clear in %s\n", ttl)
+	clearClipboardAfter(ttl, value)
 	return nil
 }
 

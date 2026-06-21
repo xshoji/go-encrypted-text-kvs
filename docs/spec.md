@@ -261,21 +261,23 @@ key already exists: NEW_API_TOKEN
 
 ### `ek copy KEY`
 
-指定 key の value をクリップボードにコピーし、30 秒後にクリップボードが同じ内容のままならクリアする。
+指定 key の value をクリップボードにコピーし、TTL 経過後にクリップボードが同じ内容のままならクリアする。TTL は `--ttl` で指定可能。省略時は 30s。
 
 ```sh
 ek copy API_TOKEN
+ek copy --ttl 10s API_TOKEN
 ```
 
 処理:
 
 1. KEY を validate する
-2. LocalAuthentication で認証する
-3. keystore から DEK を取得する
-4. KVS ファイルを復号する
-5. value を OS のクリップボードにコピーする
-6. 30 秒待つ
-7. クリップボードがコピーした value と同じ場合のみ空文字で上書きする
+2. `--ttl` を validate する（正の duration であること）
+3. LocalAuthentication で認証する
+4. keystore から DEK を取得する
+5. KVS ファイルを復号する
+6. value を OS のクリップボードにコピーする
+7. TTL の間待つ
+8. クリップボードがコピーした value と同じ場合のみ空文字で上書きする
 
 stdout は使用しない。key が存在しない場合は失敗する。
 

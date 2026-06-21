@@ -59,10 +59,16 @@ No `.env` file, nothing to gitignore, nothing to leak.
 
 ### Keep secrets off your screen on calls
 
-Instead of opening `.env` in an editor during a screen share or pasting it into an AI prompt, fetch one value at a time:
+Instead of opening `.env` in an editor during a screen share or pasting it into an AI prompt, copy one value at a time:
 
 ```sh
-ek get STRIPE_SECRET_KEY | pbcopy
+ek copy STRIPE_SECRET_KEY
+```
+
+The value goes straight to your clipboard and is cleared automatically after 30 seconds. Override the lifetime with `--ttl`:
+
+```sh
+ek copy --ttl 10s STRIPE_SECRET_KEY
 ```
 
 No plaintext file is ever on screen.
@@ -177,6 +183,13 @@ Moves a key without changing its value. Fails if `OLD_KEY` does not exist or `NE
 ### `ek copy KEY`
 
 Copies the value for `KEY` to the clipboard and clears it after 30 seconds if unchanged.
+
+```sh
+ek copy API_TOKEN
+ek copy --ttl 10s API_TOKEN
+```
+
+`--ttl` must appear before `KEY`. The clipboard is cleared only if it still holds the copied value, so anything you copy in the meantime is left alone.
 
 ### `ek unset KEY`
 
