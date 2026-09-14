@@ -39,13 +39,13 @@ homebrew_casks:
       token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     homepage: https://github.com/xshoji/go-encrypted-text-kvs
     description: ek is a small CLI tool for storing text key-value pairs in an encrypted local file.
-    hooks:
-      post:
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/xattr",
-              args: ["-dr", "com.apple.quarantine", "#{staged_path}/ek"]
-          end
+    custom_block: |
+      postflight_steps do
+        on_macos do
+          run "/usr/bin/xattr",
+              args: ["-dr", "com.apple.quarantine", "{{ "{{staged_path}}" }}/ek"]
+        end
+      end
 changelog:
   sort: asc
   filters:
